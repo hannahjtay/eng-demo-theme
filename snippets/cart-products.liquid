@@ -156,6 +156,19 @@
                       {{- item.product.title -}}
                     </a>
                   </p>
+                  {%- if item.properties._gwp == 'true' -%}
+                    <div class="cart-items__gwp-badge">
+                      <span class="cart-items__gwp-label">{{ 'gwp.free_gift' | t }}</span>
+                      <button
+                        type="button"
+                        class="cart-items__gwp-edit button button--tertiary"
+                        data-gwp-edit-button
+                        data-variant-id="{{ item.variant_id }}"
+                      >
+                        {{ 'gwp.edit_gift' | t }}
+                      </button>
+                    </div>
+                  {%- endif -%}
                   {% if item.product.vendor and block_settings.vendor %}
                     <p>
                       {{ item.product.vendor }}
@@ -766,5 +779,31 @@
   .cart-items__properties dt,
   .cart-items__properties dd {
     display: inline;
+  }
+
+  .cart-items__gwp-badge {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-sm);
+    margin-block-start: var(--margin-xs);
+    padding: var(--padding-2xs) var(--padding-sm);
+    background-color: rgb(var(--color-primary-rgb) / 0.1);
+    border-radius: var(--style-border-radius-inputs);
+    width: fit-content;
+  }
+
+  .cart-items__gwp-label {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .cart-items__gwp-edit {
+    font-size: var(--font-size-xs);
+    padding: var(--padding-2xs) var(--padding-xs);
+    min-height: auto;
+    height: auto;
   }
 {% endstylesheet %}

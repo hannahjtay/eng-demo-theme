@@ -299,6 +299,17 @@
       "expired": "Expired"
     }
   },
+  "gwp": {
+    "title": "Free gift with orders over {{ threshold }}",
+    "vip_title": "Free gift for VIP customers",
+    "description": "Choose a free gift to add to your cart",
+    "vip_description": "As a VIP customer, choose a free gift to add to your cart",
+    "add_gift": "Add gift",
+    "remove_gift": "Remove gift",
+    "change_gift": "Change gift",
+    "free_gift": "Free Gift!",
+    "edit_gift": "Edit gift"
+  },
   "placeholders": {
     "password": "Password",
     "search": "Search",

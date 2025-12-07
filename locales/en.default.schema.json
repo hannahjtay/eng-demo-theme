@@ -67,6 +67,9 @@
     "email_signup": "Email signup",
     "follow_on_shop_eligiblity": "For the button to show, the Shop channel must be installed and Shop Pay activated. [Learn more](https://help.shopify.com/en/manual/online-store/themes/customizing-themes/add-shop-buttons)",
     "gift_card_form_description": "Customers can send gift cards to a recipient's email with a personal message. [Learn more](https://help.shopify.com/manual/products/gift-card-products)",
+    "gwp_cart_threshold": "Cart threshold",
+    "gwp_gifts": "Gift products",
+    "gwp_vip": "VIP customer settings",
     "fonts": "Fonts",
     "grid": "Grid",
     "grid_layout": "Grid layout",
@@ -218,7 +221,12 @@
     "video_autoplay": "Videos will be muted by default",
     "video_external": "Use a YouTube or Vimeo URL",
     "pills_usage": "Used for applied filters, discount codes, and search suggestions",
-    "media_type_info": "Features are populated from your menu links"
+    "media_type_info": "Features are populated from your menu links",
+    "gwp_enabled": "Enable or disable the gift with purchase feature",
+    "cart_threshold": "Minimum cart value (in cents) required to qualify for a free gift",
+    "gift_products": "Select products that customers can choose as free gifts",
+    "vip_enabled": "Allow VIP customers to receive free gifts without meeting the cart threshold",
+    "vip_tag": "Customer tag that identifies VIP customers (e.g., 'VIP')"
   },
   "names": {
     "column": "Column",
@@ -294,6 +302,7 @@
     "filters": "Filtering and sorting",
     "follow_on_shop": "Follow on Shop",
     "footer": "Footer",
+    "gift_with_purchase": "Gift with purchase",
     "footer_password": "Password footer",
     // Footer block containing copyright, policies, and social links
     "footer_utilities": "Footer utilities",
@@ -848,6 +857,11 @@
     "full_width_first_image": "Full width first image",
     "full_width_on_mobile": "Full width on mobile",
     "gap": "Gap",
+    "gwp_enabled": "Enable gift with purchase",
+    "cart_threshold": "Cart threshold",
+    "gift_products": "Gift products",
+    "vip_enabled": "Enable VIP gifts",
+    "vip_tag": "VIP customer tag",
     // CSS Y-axis transform setting for vertical positioning (legacy/unused)
     "geometric_translate_y": "Geometric translate Y",
     "gift_card_form": "Gift card form",

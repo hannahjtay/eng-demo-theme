@@ -36,6 +36,12 @@
     {%- endif -%}
   </div>
 
+  {%- comment -%} Render GWP if section exists {%- endcomment -%}
+  {%- assign gwp_section_check = sections['gift-with-purchase'] -%}
+  {%- if gwp_section_check != blank -%}
+    {% render 'gift-with-purchase', section: gwp_section_check %}
+  {%- endif -%}
+
   {% if settings.show_cart_note or settings.show_add_discount_code %}
     <div class="cart-actions">
       {% if settings.show_cart_note %}

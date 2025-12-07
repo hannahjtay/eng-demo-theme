@@ -1,0 +1,275 @@
+{%- doc -%}
+  Renders the gift with purchase selection UI in the cart.
+{%- enddoc -%}
+
+{%- liquid
+  assign gwp_section = section
+  
+  if gwp_section == blank or gwp_section.settings == blank
+    assign gwp_enabled = false
+    assign cart_threshold = 0
+    assign gift_products = blank
+    assign vip_enabled = false
+    assign vip_tag = 'VIP'
+  else
+    assign gwp_enabled = gwp_section.settings.enabled
+    assign cart_threshold = gwp_section.settings.cart_threshold | times: 100
+    assign gift_products = gwp_section.settings.gift_products
+    assign vip_enabled = gwp_section.settings.vip_enabled
+    assign vip_tag = gwp_section.settings.vip_tag | default: 'VIP'
+  endif
+  
+  assign is_vip = false
+  if customer and customer.tags contains vip_tag
+    assign is_vip = true
+  endif
+  
+  assign cart_total = cart.total_price
+  assign meets_threshold = false
+  if cart_total >= cart_threshold
+    assign meets_threshold = true
+  endif
+  
+  assign is_eligible = false
+  if gwp_enabled
+    if is_vip or meets_threshold
+      assign is_eligible = true
+    endif
+  endif
+  
+  assign has_gift_products = false
+  if gift_products != blank and gift_products.size > 0
+    assign has_gift_products = true
+  endif
+  
+  assign current_gift_variant_id = null
+  assign has_gift_in_cart = false
+  for item in cart.items
+    if item.properties._gwp == 'true'
+      assign current_gift_variant_id = item.variant_id
+      assign has_gift_in_cart = true
+      break
+    endif
+  endfor
+  
+  comment
+    Hide the component if a gift is already in cart.
+    It will be shown again when "Edit gift" is clicked.
+  endcomment
+  assign show_gwp_component = true
+  if has_gift_in_cart
+    assign show_gwp_component = false
+  endif
+-%}
+
+{%- if gwp_enabled and has_gift_products and is_eligible -%}
+  <script
+    src="{{ 'gift-with-purchase.js' | asset_url }}"
+    type="module"
+    fetchpriority="low"
+  ></script>
+
+  <gift-with-purchase-component
+    class="gwp-component{% unless show_gwp_component %} gwp-component--hidden{% endunless %}"
+    data-section-id="{{ gwp_section.id | default: 'gift-with-purchase' }}"
+    data-cart-threshold="{{ cart_threshold }}"
+    data-vip-enabled="{{ vip_enabled }}"
+    data-vip-tag="{{ vip_tag | escape }}"
+    data-is-vip="{{ is_vip }}"
+    data-current-gift-variant-id="{{ current_gift_variant_id }}"
+    data-has-gift-in-cart="{% if current_gift_variant_id %}true{% else %}false{% endif %}"
+    data-has-gift-in-cart="{{ has_gift_in_cart }}"
+    {% if gwp_section.shopify_attributes %}{{ gwp_section.shopify_attributes }}{% endif %}
+  >
+    <div class="gwp">
+      <div class="gwp__header">
+        <h3 class="gwp__title">
+          {%- if is_vip -%}
+            {{ 'gwp.vip_title' | t }}
+          {%- else -%}
+            {{ 'gwp.title' | t: threshold: cart_threshold | money }}
+          {%- endif -%}
+        </h3>
+        <p class="gwp__description">
+          {%- if is_vip -%}
+            {{ 'gwp.vip_description' | t }}
+          {%- else -%}
+            {{ 'gwp.description' | t }}
+          {%- endif -%}
+        </p>
+      </div>
+
+      <div class="gwp__products">
+        {%- for product in gift_products -%}
+          {%- if product.available -%}
+            {%- assign default_variant = product.selected_or_first_available_variant -%}
+            <div
+              class="gwp__product{% if current_gift_variant_id == default_variant.id %} gwp__product--selected{% endif %}"
+              data-product-id="{{ product.id }}"
+              data-variant-id="{{ default_variant.id }}"
+            >
+              <label class="gwp__product-label">
+                <input
+                  type="radio"
+                  name="gwp-selection"
+                  value="{{ default_variant.id }}"
+                  class="gwp__product-radio"
+                  {% if current_gift_variant_id == default_variant.id %}checked{% endif %}
+                />
+                <div class="gwp__product-content">
+                  {%- if product.featured_image -%}
+                    <div class="gwp__product-image">
+                      {{
+                        product.featured_image
+                        | image_url: width: 150
+                        | image_tag: loading: 'lazy', alt: product.title
+                      }}
+                    </div>
+                  {%- endif -%}
+                  <div class="gwp__product-info">
+                    <span class="gwp__product-title">{{ product.title }}</span>
+                    {%- if product.variants.size > 1 -%}
+                      <span class="gwp__product-variant">
+                        {{ default_variant.title }}
+                      </span>
+                    {%- endif -%}
+                  </div>
+                </div>
+              </label>
+            </div>
+          {%- endif -%}
+        {%- endfor -%}
+      </div>
+
+      <div class="gwp__actions">
+        <button
+          type="button"
+          class="gwp__add-button button button--secondary"
+          disabled
+          data-original-text="{{ 'gwp.add_gift' | t }}"
+          data-change-text="{{ 'gwp.change_gift' | t }}"
+        >
+          {{ 'gwp.add_gift' | t }}
+        </button>
+      </div>
+    </div>
+  </gift-with-purchase-component>
+{%- endif -%}
+
+{% stylesheet %}
+  .gwp {
+    border: 1px solid var(--color-border);
+    border-radius: var(--style-border-radius-inputs);
+    padding: var(--padding-md);
+    margin-block: var(--margin-md);
+    background-color: var(--color-background);
+  }
+
+  .gwp__header {
+    margin-bottom: var(--margin-md);
+  }
+
+  .gwp__title {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-bold);
+    margin-bottom: var(--margin-xs);
+  }
+
+  .gwp__description {
+    font-size: var(--font-size-sm);
+    color: rgb(var(--color-foreground-rgb) / var(--opacity-70));
+    margin: 0;
+  }
+
+  .gwp__products {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-sm);
+    margin-bottom: var(--margin-md);
+  }
+
+  .gwp__product-label {
+    display: block;
+    cursor: pointer;
+    border: 1px solid var(--color-border);
+    border-radius: var(--style-border-radius-inputs);
+    padding: var(--padding-sm);
+    transition: border-color var(--animation-speed) var(--animation-easing),
+      background-color var(--animation-speed) var(--animation-easing);
+  }
+
+  .gwp__product-label:hover {
+    border-color: var(--color-foreground);
+    background-color: rgb(var(--color-foreground-rgb) / 0.05);
+  }
+
+  .gwp__product--selected .gwp__product-label {
+    border-color: var(--color-foreground);
+    background-color: rgb(var(--color-foreground-rgb) / 0.1);
+  }
+
+  .gwp__product-radio {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .gwp__product-content {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-sm);
+  }
+
+  .gwp__product-image {
+    flex-shrink: 0;
+    width: 60px;
+    height: 60px;
+    border-radius: var(--style-border-radius-inputs);
+    overflow: hidden;
+  }
+
+  .gwp__product-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .gwp__product-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-2xs);
+    flex: 1;
+  }
+
+  .gwp__product-title {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .gwp__product-variant {
+    font-size: var(--font-size-xs);
+    color: rgb(var(--color-foreground-rgb) / var(--opacity-70));
+  }
+
+  .gwp__actions {
+    display: flex;
+    gap: var(--gap-sm);
+    flex-wrap: wrap;
+  }
+
+  .gwp__add-button,
+  .gwp__remove-button {
+    flex: 1;
+    min-width: fit-content;
+  }
+
+  .gwp__add-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .gwp-component--hidden {
+    display: none;
+  }
+{% endstylesheet %}
+
