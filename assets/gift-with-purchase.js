@@ -225,9 +225,14 @@ class GiftWithPurchaseComponent extends Component {
     }
 
     if (this.progressText && this.progressContainer) {
-      const remainingFormatted = this.#formatMoney(remaining);
-      const remainingText = this.progressContainer.dataset.remainingText || '{{ amount }} remaining';
-      this.progressText.textContent = remainingText.replace('{{ amount }}', remainingFormatted);
+      // Hide progress text when threshold is met
+      this.progressText.classList.toggle('gwp__progress-text--hidden', meetsThreshold);
+      
+      if (!meetsThreshold) {
+        const remainingFormatted = this.#formatMoney(remaining);
+        const remainingText = this.progressContainer.dataset.remainingText || '{{ amount }} remaining';
+        this.progressText.textContent = remainingText.replace('{{ amount }}', remainingFormatted);
+      }
     }
 
     if (this.progressMessage && this.progressContainer) {
