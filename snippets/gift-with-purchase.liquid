@@ -11,17 +11,16 @@
     assign gift_products = blank
     assign vip_enabled = false
     assign vip_tag = 'VIP'
+    assign vip_product = blank
+    assign vip_test_mode = false
   else
     assign gwp_enabled = gwp_section.settings.enabled
     assign cart_threshold = gwp_section.settings.cart_threshold | times: 100
     assign gift_products = gwp_section.settings.gift_products
     assign vip_enabled = gwp_section.settings.vip_enabled
     assign vip_tag = gwp_section.settings.vip_tag | default: 'VIP'
-  endif
-  
-  assign is_vip = false
-  if customer and customer.tags contains vip_tag
-    assign is_vip = true
+    assign vip_product = gwp_section.settings.vip_product
+    assign vip_test_mode = gwp_section.settings.vip_test_mode
   endif
   
   assign cart_total = cart.total_price
@@ -49,9 +48,47 @@
       break
     endif
   endfor
+  
+  comment
+    Check VIP customer status and VIP gift in cart
+    In test mode, treat all customers as VIP
+  endcomment
+  assign is_vip_customer = false
+  if vip_test_mode
+    assign is_vip_customer = true
+  else
+    if customer and customer.tags != blank
+      if customer.tags contains vip_tag
+        assign is_vip_customer = true
+      endif
+    endif
+  endif
+  
+  assign vip_product_variant_id = null
+  assign has_vip_gift_in_cart = false
+  if is_vip_customer and vip_product != blank and vip_product.available
+    assign vip_product_variant_id = vip_product.selected_or_first_available_variant.id
+    for item in cart.items
+      if item.properties._vip_gift == 'true'
+        assign has_vip_gift_in_cart = true
+        break
+      endif
+    endfor
+  endif
+  
+  comment
+    Component should render if GWP is enabled with products, OR if VIP is enabled
+  endcomment
+  assign should_render = false
+  if gwp_enabled and has_gift_products
+    assign should_render = true
+  endif
+  if vip_enabled and is_vip_customer and vip_product != blank and vip_product.available
+    assign should_render = true
+  endif
 -%}
 
-{%- if gwp_enabled and has_gift_products -%}
+{%- if should_render -%}
   <script
     src="{{ 'gift-with-purchase.js' | asset_url }}"
     type="module"
@@ -62,25 +99,22 @@
     class="gwp-component"
     data-section-id="{{ gwp_section.id | default: 'gift-with-purchase' }}"
     data-cart-threshold="{{ cart_threshold }}"
-    data-vip-enabled="{{ vip_enabled }}"
-    data-vip-tag="{{ vip_tag | escape }}"
-    data-is-vip="{{ is_vip }}"
     data-current-gift-variant-id="{{ current_gift_variant_id }}"
     data-has-gift-in-cart="{% if current_gift_variant_id %}true{% else %}false{% endif %}"
     data-has-gift-in-cart="{{ has_gift_in_cart }}"
     data-cart-total="{{ cart_total }}"
+    data-vip-enabled="{% if vip_enabled %}true{% else %}false{% endif %}"
+    data-is-vip-customer="{% if is_vip_customer %}true{% else %}false{% endif %}"
+    data-vip-product-variant-id="{{ vip_product_variant_id }}"
+    data-has-vip-gift-in-cart="{% if has_vip_gift_in_cart %}true{% else %}false{% endif %}"
     {% if gwp_section.shopify_attributes %}{{ gwp_section.shopify_attributes }}{% endif %}
   >
     <div class="gwp">
       <div class="gwp__header">
         <div class="gwp__header-content">
           <h3 class="gwp__title">
-            {%- if is_vip -%}
-              {{ 'gwp.vip_title' | t }}
-            {%- else -%}
-              {% assign threshold = cart_threshold | money %}
-              {{ 'gwp.title' | t: threshold: threshold }}
-            {%- endif -%}
+            {% assign threshold = cart_threshold | money %}
+            {{ 'gwp.title' | t: threshold: threshold }}
           </h3>
         </div>
         <button
@@ -95,14 +129,13 @@
         </button>
       </div>
 
-      {%- unless is_vip -%}
-        <div
-          class="gwp__progress"
-          data-gwp-progress
-          data-remaining-text="{{ 'gwp.progress.remaining' | t }}"
-          data-qualified-text="{{ 'gwp.progress.qualified' | t }}"
-          data-add-more-text="{{ 'gwp.progress.add_more' | t }}"
-        >
+      <div
+        class="gwp__progress"
+        data-gwp-progress
+        data-remaining-text="{{ 'gwp.progress.remaining' | t }}"
+        data-qualified-text="{{ 'gwp.progress.qualified' | t }}"
+        data-add-more-text="{{ 'gwp.progress.add_more' | t }}"
+      >
           <div class="gwp__progress-header">
             <span class="gwp__progress-text" data-gwp-progress-text>
               {{ 'gwp.progress.remaining' | t: amount: cart_threshold | minus: cart_total | money }}
@@ -137,18 +170,13 @@
             {%- endif -%}
           </p>
         </div>
-      {%- endunless -%}
 
       <div
-        class="gwp__products{% unless is_vip or meets_threshold %} gwp__products--hidden{% endunless %}"
+        class="gwp__products{% unless meets_threshold %} gwp__products--hidden{% endunless %}"
         data-gwp-products
       >
         <p class="gwp__description">
-          {%- if is_vip -%}
-            {{ 'gwp.vip_description' | t }}
-          {%- else -%}
-            {{ 'gwp.description' | t }}
-          {%- endif -%}
+          {{ 'gwp.description' | t }}
         </p>
         {%- for product in gift_products -%}
           {%- if product.available -%}
@@ -192,7 +220,7 @@
       </div>
 
       <div
-        class="gwp__actions{% unless is_vip or meets_threshold %} gwp__actions--hidden{% endunless %}"
+        class="gwp__actions{% unless meets_threshold %} gwp__actions--hidden{% endunless %}"
         data-gwp-actions
       >
         <button

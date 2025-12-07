@@ -4,7 +4,7 @@ import { CartUpdateEvent, CartAddEvent } from '@theme/events';
 import { sectionRenderer, morphSection } from '@theme/section-renderer';
 
 class GiftWithPurchaseComponent extends Component {
-  connectedCallback() {
+  async connectedCallback() {
     super.connectedCallback();
     this.#initState();
     this.#cacheElements();
@@ -12,6 +12,9 @@ class GiftWithPurchaseComponent extends Component {
     this.#updateComponentVisibility();
     this.#updateButtonStates();
     this.#updateProgressBar();
+    // Handle VIP gift logic on initial load (with small delay to ensure cart is ready)
+    await this.#delay(100);
+    await this.#handleVipGiftLogic();
   }
 
   updatedCallback() {
@@ -35,9 +38,6 @@ class GiftWithPurchaseComponent extends Component {
     const d = this.dataset;
 
     this.cartThreshold = parseInt(d.cartThreshold || '0', 10);
-    this.vipEnabled = d.vipEnabled === 'true';
-    this.vipTag = d.vipTag || 'VIP';
-    this.isVip = d.isVip === 'true';
 
     this.currentGiftVariantId = d.currentGiftVariantId
       ? parseInt(d.currentGiftVariantId, 10)
@@ -47,6 +47,22 @@ class GiftWithPurchaseComponent extends Component {
     this.sectionId = d.sectionId || 'gift-with-purchase';
     this.isEditing = false;
     this.cartTotal = parseInt(d.cartTotal || '0', 10);
+
+    // VIP gift state
+    this.vipEnabled = d.vipEnabled === 'true';
+    this.isVipCustomer = d.isVipCustomer === 'true';
+    this.vipProductVariantId = d.vipProductVariantId
+      ? parseInt(d.vipProductVariantId, 10)
+      : null;
+    this.hasVipGiftInCart = d.hasVipGiftInCart === 'true';
+
+    console.log('GWP Component initialized:', {
+      vipEnabled: this.vipEnabled,
+      isVipCustomer: this.isVipCustomer,
+      vipProductVariantId: this.vipProductVariantId,
+      hasVipGiftInCart: this.hasVipGiftInCart,
+      cartTotal: this.cartTotal
+    });
   }
 
   #cacheElements() {
@@ -72,6 +88,7 @@ class GiftWithPurchaseComponent extends Component {
 
     document.addEventListener('click', this.#handleEditGiftClick);
     document.addEventListener('cart:update', this.#handleCartUpdate);
+    document.addEventListener('cart:add', this.#handleCartAdd);
   }
 
   #bindElementEvents() {
@@ -98,6 +115,7 @@ class GiftWithPurchaseComponent extends Component {
 
     document.removeEventListener('click', this.#handleEditGiftClick);
     document.removeEventListener('cart:update', this.#handleCartUpdate);
+    document.removeEventListener('cart:add', this.#handleCartAdd);
   }
 
   #bindRadioEvents() {
@@ -175,7 +193,7 @@ class GiftWithPurchaseComponent extends Component {
   }
 
   #updateProgressBar() {
-    if (this.isVip || !this.progressContainer) return;
+    if (!this.progressContainer) return;
 
     const meetsThreshold = this.cartTotal >= this.cartThreshold;
     const progress = Math.min((this.cartTotal / this.cartThreshold) * 100, 100);
@@ -213,18 +231,7 @@ class GiftWithPurchaseComponent extends Component {
   }
 
   #updateProductsVisibility(meetsThreshold) {
-    // VIP customers always see products/actions
-    if (this.isVip) {
-      if (this.productsSection) {
-        this.productsSection.classList.remove('gwp__products--hidden');
-      }
-      if (this.actionsSection) {
-        this.actionsSection.classList.remove('gwp__actions--hidden');
-      }
-      return;
-    }
-
-    // Non-VIP customers only see products/actions when threshold is met
+    // Only show products/actions when threshold is met
     if (this.productsSection) {
       this.productsSection.classList.toggle('gwp__products--hidden', !meetsThreshold);
     }
@@ -264,6 +271,13 @@ class GiftWithPurchaseComponent extends Component {
   #handleCartUpdate = async (event) => {
     if (event.target === this) return;
     await this.#syncWithCart();
+    await this.#handleVipGiftLogic();
+  };
+
+  #handleCartAdd = async (event) => {
+    if (event.target === this) return;
+    await this.#syncWithCart();
+    await this.#handleVipGiftLogic();
   };
 
   #handleAddGift = async () => {
@@ -286,17 +300,20 @@ class GiftWithPurchaseComponent extends Component {
 
       this.cartTotal = cart.total_price;
       const meetsThreshold = cart.total_price >= this.cartThreshold;
-      const eligible = this.isVip || meetsThreshold;
 
       const gwpItems = cart.items.filter((i) => this.#isGwpItem(i));
       this.hasGiftInCart = gwpItems.length > 0;
 
       this.currentGiftVariantId = gwpItems[0]?.variant_id || null;
 
+      // Check for VIP gift in cart
+      const vipGiftItems = cart.items.filter((i) => this.#isVipGiftItem(i));
+      this.hasVipGiftInCart = vipGiftItems.length > 0;
+
       this.#updateComponentVisibility();
       this.#updateProgressBar();
 
-      if (!eligible && gwpItems.length > 0) {
+      if (!meetsThreshold && gwpItems.length > 0) {
         await this.#removeAllGwpItems();
         this.currentGiftVariantId = null;
         this.hasGiftInCart = false;
@@ -315,6 +332,22 @@ class GiftWithPurchaseComponent extends Component {
     }
 
     return item.properties._gwp === 'true';
+  }
+
+  #isVipGiftItem(item) {
+    if (!item.properties) return false;
+
+    if (Array.isArray(item.properties)) {
+      return item.properties.some((p) => p.name === '_vip_gift' && p.value === 'true');
+    }
+
+    return item.properties._vip_gift === 'true';
+  }
+
+  #hasRegularProducts(cart) {
+    return cart.items.some(
+      (item) => !this.#isGwpItem(item) && !this.#isVipGiftItem(item) 
+    );
   }
 
   #getCartSectionIds() {
@@ -351,6 +384,35 @@ class GiftWithPurchaseComponent extends Component {
       await this.#delay(100);
     }
 
+    await this.#delay(300);
+    await this.#refreshAllCartSections();
+  }
+
+  async #removeVipGift() {
+    const cart = await this.#fetchJson(Theme.routes.cart_url + '.js');
+    const vipGiftItems = cart.items.filter((i) => this.#isVipGiftItem(i));
+
+    if (vipGiftItems.length === 0) return;
+
+    const sectionIds = this.#getCartSectionIds();
+    const sorted = [...vipGiftItems].sort(
+      (a, b) => cart.items.indexOf(b) - cart.items.indexOf(a)
+    );
+
+    for (const item of sorted) {
+      const line = cart.items.indexOf(item) + 1;
+
+      await this.#postJson(Theme.routes.cart_change_url, {
+        line,
+        quantity: 0,
+        sections: sectionIds.join(','),
+        sections_url: window.location.pathname,
+      });
+
+      await this.#delay(100);
+    }
+
+    this.hasVipGiftInCart = false;
     await this.#delay(300);
     await this.#refreshAllCartSections();
   }
@@ -410,6 +472,110 @@ class GiftWithPurchaseComponent extends Component {
     }
   }
 
+  async #addVipGiftToCart() {
+    if (!this.vipProductVariantId) {
+      console.warn('VIP gift: No VIP product variant ID set');
+      return;
+    }
+
+    console.log('VIP gift: Attempting to add to cart', {
+      variantId: this.vipProductVariantId,
+      cartAddUrl: Theme.routes.cart_add_url
+    });
+
+    try {
+      const formData = new FormData();
+      formData.append('id', this.vipProductVariantId.toString());
+      formData.append('quantity', '1');
+      formData.append('properties[_vip_gift]', 'true');
+      formData.append('properties[VIP Gift]', 'VIP Gift');
+      formData.append('sections', this.#getCartSectionIds().join(','));
+
+      const cfg = fetchConfig('javascript', { body: formData });
+      const response = await fetch(Theme.routes.cart_add_url, {
+        ...cfg,
+        headers: { ...cfg.headers, Accept: 'application/json' },
+      });
+
+      const data = await response.json();
+      console.log('VIP gift: Cart add response', data);
+
+      if (data.status) {
+        throw new Error(data.message || 'Failed to add VIP gift');
+      }
+
+      Object.entries(data.sections || {}).forEach(([id, html]) =>
+        morphSection(id, html)
+      );
+
+      const cart = await this.#fetchJson(Theme.routes.cart_url + '.js');
+
+      this.dispatchEvent(
+        new CartAddEvent({}, this.sectionId, {
+          source: 'gift-with-purchase-component',
+          itemCount: cart.item_count,
+          variantId: this.vipProductVariantId.toString(),
+          sections: data.sections,
+        })
+      );
+
+      // Update state after successful add
+      this.hasVipGiftInCart = true;
+      console.log('VIP gift: Successfully added to cart');
+      await this.#syncWithCart();
+    } catch (err) {
+      console.error('Error adding VIP gift:', err);
+    }
+  }
+
+  async #handleVipGiftLogic() {
+    if (!this.vipEnabled) {
+      console.log('VIP gift: VIP feature is disabled');
+      return;
+    }
+
+    if (!this.isVipCustomer) {
+      console.log('VIP gift: Customer is not VIP');
+      return;
+    }
+
+    if (!this.vipProductVariantId) {
+      console.warn('VIP gift: VIP enabled and customer is VIP, but no VIP product variant ID set');
+      return;
+    }
+
+    try {
+      const cart = await this.#fetchJson(Theme.routes.cart_url + '.js');
+      const hasRegularProducts = this.#hasRegularProducts(cart);
+      const hasVipGift = cart.items.some((item) => this.#isVipGiftItem(item));
+
+      console.log('VIP gift logic:', {
+        hasRegularProducts,
+        hasVipGift,
+        cartItemCount: cart.items.length,
+        vipProductVariantId: this.vipProductVariantId
+      });
+
+      if (hasRegularProducts) {
+        // If cart has regular products, add VIP gift automatically
+        if (!hasVipGift) {
+          console.log('VIP gift: Adding VIP gift (regular products in cart)');
+          await this.#addVipGiftToCart();
+        } else {
+          console.log('VIP gift: Already in cart');
+        }
+      } else {
+        // If cart is empty or only has VIP gift, remove VIP gift
+        if (hasVipGift) {
+          console.log('VIP gift: Removing VIP gift (cart empty or only has VIP gift)');
+          await this.#removeVipGift();
+        }
+      }
+    } catch (err) {
+      console.error('Error handling VIP gift logic:', err);
+    }
+  }
+
   /* ---------------------------------------------------------------------------
    * Utilities
    * ------------------------------------------------------------------------- */
@@ -417,9 +583,11 @@ class GiftWithPurchaseComponent extends Component {
   async #refreshAllCartSections() {
     const ids = this.#getCartSectionIds();
     await Promise.all(
-      ids.map((id) =>
-        sectionRenderer.renderSection(id, { cache: false }).catch(() => {})
-      )
+      ids
+        .filter((id) => id)
+        .map((id) =>
+          sectionRenderer.renderSection(id, { cache: false }).catch(() => {})
+        )
     );
   }
 
