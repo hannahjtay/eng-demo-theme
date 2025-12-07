@@ -4,7 +4,9 @@
   Render the GWP snippet when this section is added to a template.
   The snippet will use this section's settings.
 {%- endcomment -%}
-{% render 'gift-with-purchase', section: section %}
+{% if section.settings.enabled == true or section.settings.vip_enabled == true %}
+  {% render 'gift-with-purchase', section: section %}
+{% endif %}
 
 {% schema %}
 {

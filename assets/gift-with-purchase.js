@@ -37,6 +37,7 @@ class GiftWithPurchaseComponent extends Component {
   #initState() {
     const d = this.dataset;
 
+    this.gwpEnabled = d.gwpEnabled === 'true';
     this.cartThreshold = parseInt(d.cartThreshold || '0', 10);
 
     this.currentGiftVariantId = d.currentGiftVariantId
@@ -163,6 +164,9 @@ class GiftWithPurchaseComponent extends Component {
    * ------------------------------------------------------------------------- */
 
   #updateButtonStates() {
+    // Skip if GWP is disabled
+    if (!this.gwpEnabled) return;
+    
     const selected = this.querySelector('.gwp__product-radio:checked');
     const selectedId = selected ? parseInt(selected.value, 10) : null;
 
@@ -187,13 +191,26 @@ class GiftWithPurchaseComponent extends Component {
   #updateComponentVisibility() {
     this.classList.toggle('gwp-component--editing', this.isEditing);
     
-    // Also update products/actions visibility when component visibility changes
-    const meetsThreshold = this.cartTotal >= this.cartThreshold;
-    this.#updateProductsVisibility(meetsThreshold);
+    // Hide entire component if GWP is disabled (unless VIP is enabled)
+    if (!this.gwpEnabled && !this.vipEnabled) {
+      this.style.display = 'none';
+      return;
+    } else {
+      this.style.display = '';
+    }
+    
+    // Only update products/actions visibility if GWP is enabled
+    if (this.gwpEnabled) {
+      const meetsThreshold = this.cartTotal >= this.cartThreshold;
+      this.#updateProductsVisibility(meetsThreshold);
+    }
   }
 
   #updateProgressBar() {
     if (!this.progressContainer) return;
+    
+    // Skip progress bar updates if GWP is disabled
+    if (!this.gwpEnabled) return;
 
     const meetsThreshold = this.cartTotal >= this.cartThreshold;
     const progress = Math.min((this.cartTotal / this.cartThreshold) * 100, 100);
@@ -231,12 +248,19 @@ class GiftWithPurchaseComponent extends Component {
   }
 
   #updateProductsVisibility(meetsThreshold) {
-    // Only show products/actions when threshold is met
+    // Skip if GWP is disabled
+    if (!this.gwpEnabled) return;
+    
+    // Hide products/actions if:
+    // 1. Threshold is not met, OR
+    // 2. A regular GWP is in cart and user is not editing
+    const shouldHide = !meetsThreshold || (this.hasGiftInCart && !this.isEditing);
+    
     if (this.productsSection) {
-      this.productsSection.classList.toggle('gwp__products--hidden', !meetsThreshold);
+      this.productsSection.classList.toggle('gwp__products--hidden', shouldHide);
     }
     if (this.actionsSection) {
-      this.actionsSection.classList.toggle('gwp__actions--hidden', !meetsThreshold);
+      this.actionsSection.classList.toggle('gwp__actions--hidden', shouldHide);
     }
   }
 
@@ -299,21 +323,28 @@ class GiftWithPurchaseComponent extends Component {
       const cart = await this.#fetchJson(Theme.routes.cart_url + '.js');
 
       this.cartTotal = cart.total_price;
-      const meetsThreshold = cart.total_price >= this.cartThreshold;
+      
+      // Only check threshold if GWP is enabled
+      const meetsThreshold = this.gwpEnabled ? cart.total_price >= this.cartThreshold : false;
 
       const gwpItems = cart.items.filter((i) => this.#isGwpItem(i));
       this.hasGiftInCart = gwpItems.length > 0;
 
       this.currentGiftVariantId = gwpItems[0]?.variant_id || null;
 
-      // Check for VIP gift in cart
+      // Check for VIP gift in cart (independent of GWP enabled state)
       const vipGiftItems = cart.items.filter((i) => this.#isVipGiftItem(i));
       this.hasVipGiftInCart = vipGiftItems.length > 0;
 
       this.#updateComponentVisibility();
-      this.#updateProgressBar();
+      
+      // Only update progress bar if GWP is enabled
+      if (this.gwpEnabled) {
+        this.#updateProgressBar();
+      }
 
-      if (!meetsThreshold && gwpItems.length > 0) {
+      // Only remove GWP items if threshold not met and GWP is enabled
+      if (this.gwpEnabled && !meetsThreshold && gwpItems.length > 0) {
         await this.#removeAllGwpItems();
         this.currentGiftVariantId = null;
         this.hasGiftInCart = false;

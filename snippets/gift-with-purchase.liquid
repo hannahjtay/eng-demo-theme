@@ -98,6 +98,7 @@
   <gift-with-purchase-component
     class="gwp-component"
     data-section-id="{{ gwp_section.id | default: 'gift-with-purchase' }}"
+    data-gwp-enabled="{% if gwp_enabled %}true{% else %}false{% endif %}"
     data-cart-threshold="{{ cart_threshold }}"
     data-current-gift-variant-id="{{ current_gift_variant_id }}"
     data-has-gift-in-cart="{% if current_gift_variant_id %}true{% else %}false{% endif %}"
@@ -110,6 +111,8 @@
     {% if gwp_section.shopify_attributes %}{{ gwp_section.shopify_attributes }}{% endif %}
   >
     <div class="gwp">
+      {%- if gwp_enabled -%}
+
       <div class="gwp__header">
         <div class="gwp__header-content">
           <h3 class="gwp__title">
@@ -170,7 +173,9 @@
             {%- endif -%}
           </p>
         </div>
+      {%- endif -%}
 
+      {%- if gwp_enabled -%}
       <div
         class="gwp__products{% unless meets_threshold %} gwp__products--hidden{% endunless %}"
         data-gwp-products
@@ -233,6 +238,7 @@
           {{ 'gwp.add_gift' | t }}
         </button>
       </div>
+      {%- endif -%}
     </div>
   </gift-with-purchase-component>
 {%- endif -%}
