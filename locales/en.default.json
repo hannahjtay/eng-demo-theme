@@ -300,7 +300,7 @@
     }
   },
   "gwp": {
-    "title": "Free gift with orders over {{ threshold }}",
+    "title": "Free gift with orders over {{ threshold }}!",
     "vip_title": "Free gift for VIP customers",
     "description": "Choose a free gift to add to your cart",
     "vip_description": "As a VIP customer, choose a free gift to add to your cart",
@@ -308,7 +308,12 @@
     "remove_gift": "Remove gift",
     "change_gift": "Change gift",
     "free_gift": "Free Gift!",
-    "edit_gift": "Edit gift"
+    "edit_gift": "Edit gift",
+    "progress": {
+      "remaining": "{{ amount }} remaining",
+      "qualified": "You qualify for a free gift!",
+      "add_more": "Add {{ threshold }} to qualify"
+    }
   },
   "placeholders": {
     "password": "Password",

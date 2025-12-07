@@ -30,17 +30,15 @@
     assign meets_threshold = true
   endif
   
-  assign is_eligible = false
-  if gwp_enabled
-    if is_vip or meets_threshold
-      assign is_eligible = true
-    endif
-  endif
-  
   assign has_gift_products = false
   if gift_products != blank and gift_products.size > 0
     assign has_gift_products = true
   endif
+  
+  comment
+    Component should always be visible when GWP is enabled and has products.
+    Visibility of products/actions will be controlled by JavaScript based on threshold.
+  endcomment
   
   assign current_gift_variant_id = null
   assign has_gift_in_cart = false
@@ -51,18 +49,9 @@
       break
     endif
   endfor
-  
-  comment
-    Hide the component if a gift is already in cart.
-    It will be shown again when "Edit gift" is clicked.
-  endcomment
-  assign show_gwp_component = true
-  if has_gift_in_cart
-    assign show_gwp_component = false
-  endif
 -%}
 
-{%- if gwp_enabled and has_gift_products and is_eligible -%}
+{%- if gwp_enabled and has_gift_products -%}
   <script
     src="{{ 'gift-with-purchase.js' | asset_url }}"
     type="module"
@@ -70,7 +59,7 @@
   ></script>
 
   <gift-with-purchase-component
-    class="gwp-component{% unless show_gwp_component %} gwp-component--hidden{% endunless %}"
+    class="gwp-component"
     data-section-id="{{ gwp_section.id | default: 'gift-with-purchase' }}"
     data-cart-threshold="{{ cart_threshold }}"
     data-vip-enabled="{{ vip_enabled }}"
@@ -79,17 +68,81 @@
     data-current-gift-variant-id="{{ current_gift_variant_id }}"
     data-has-gift-in-cart="{% if current_gift_variant_id %}true{% else %}false{% endif %}"
     data-has-gift-in-cart="{{ has_gift_in_cart }}"
+    data-cart-total="{{ cart_total }}"
     {% if gwp_section.shopify_attributes %}{{ gwp_section.shopify_attributes }}{% endif %}
   >
     <div class="gwp">
       <div class="gwp__header">
-        <h3 class="gwp__title">
-          {%- if is_vip -%}
-            {{ 'gwp.vip_title' | t }}
-          {%- else -%}
-            {{ 'gwp.title' | t: threshold: cart_threshold | money }}
-          {%- endif -%}
-        </h3>
+        <div class="gwp__header-content">
+          <h3 class="gwp__title">
+            {%- if is_vip -%}
+              {{ 'gwp.vip_title' | t }}
+            {%- else -%}
+              {% assign threshold = cart_threshold | money %}
+              {{ 'gwp.title' | t: threshold: threshold }}
+            {%- endif -%}
+          </h3>
+        </div>
+        <button
+          type="button"
+          class="gwp__close-button"
+          aria-label="{{ 'actions.close' | t }}"
+          data-gwp-close-button
+        >
+          <span class="gwp__close-icon" aria-hidden="true">
+            {{ 'icon-close.svg' | inline_asset_content }}
+          </span>
+        </button>
+      </div>
+
+      {%- unless is_vip -%}
+        <div
+          class="gwp__progress"
+          data-gwp-progress
+          data-remaining-text="{{ 'gwp.progress.remaining' | t }}"
+          data-qualified-text="{{ 'gwp.progress.qualified' | t }}"
+          data-add-more-text="{{ 'gwp.progress.add_more' | t }}"
+        >
+          <div class="gwp__progress-header">
+            <span class="gwp__progress-text" data-gwp-progress-text>
+              {{ 'gwp.progress.remaining' | t: amount: cart_threshold | minus: cart_total | money }}
+            </span>
+            <span class="gwp__progress-percentage" data-gwp-progress-percentage>
+              {%- liquid
+                assign progress_percentage = cart_total | times: 100 | divided_by: cart_threshold
+                if progress_percentage > 100
+                  assign progress_percentage = 100
+                endif
+              -%}
+              {{ progress_percentage }}%
+            </span>
+          </div>
+          <div class="gwp__progress-bar">
+            <div
+              class="gwp__progress-fill"
+              data-gwp-progress-fill
+              style="--progress: {%- liquid
+                assign progress_percentage = cart_total | times: 100 | divided_by: cart_threshold
+                if progress_percentage > 100
+                  assign progress_percentage = 100
+                endif
+              -%}{{ progress_percentage }}%"
+            ></div>
+          </div>
+          <p class="gwp__progress-message" data-gwp-progress-message>
+            {%- if meets_threshold -%}
+              {{ 'gwp.progress.qualified' | t }}
+            {%- else -%}
+              {{ 'gwp.progress.add_more' | t: threshold: cart_threshold | money }}
+            {%- endif -%}
+          </p>
+        </div>
+      {%- endunless -%}
+
+      <div
+        class="gwp__products{% unless is_vip or meets_threshold %} gwp__products--hidden{% endunless %}"
+        data-gwp-products
+      >
         <p class="gwp__description">
           {%- if is_vip -%}
             {{ 'gwp.vip_description' | t }}
@@ -97,9 +150,6 @@
             {{ 'gwp.description' | t }}
           {%- endif -%}
         </p>
-      </div>
-
-      <div class="gwp__products">
         {%- for product in gift_products -%}
           {%- if product.available -%}
             {%- assign default_variant = product.selected_or_first_available_variant -%}
@@ -141,7 +191,10 @@
         {%- endfor -%}
       </div>
 
-      <div class="gwp__actions">
+      <div
+        class="gwp__actions{% unless is_vip or meets_threshold %} gwp__actions--hidden{% endunless %}"
+        data-gwp-actions
+      >
         <button
           type="button"
           class="gwp__add-button button button--secondary"
@@ -166,7 +219,52 @@
   }
 
   .gwp__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--gap-sm);
     margin-bottom: var(--margin-md);
+  }
+
+  .gwp__header-content {
+    flex: 1;
+  }
+
+  .gwp__close-button {
+    flex-shrink: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: rgb(var(--color-foreground-rgb) / var(--opacity-70));
+    cursor: pointer;
+    border-radius: var(--style-border-radius-inputs);
+    transition: color var(--animation-speed) var(--animation-easing),
+      background-color var(--animation-speed) var(--animation-easing);
+  }
+
+  .gwp__close-button:hover {
+    color: var(--color-foreground);
+    background-color: rgb(var(--color-foreground-rgb) / 0.05);
+  }
+
+  .gwp__close-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .gwp__close-icon svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .gwp-component--editing .gwp__close-button {
+    display: flex;
   }
 
   .gwp__title {
@@ -179,6 +277,65 @@
     font-size: var(--font-size-sm);
     color: rgb(var(--color-foreground-rgb) / var(--opacity-70));
     margin: 0;
+  }
+
+  .gwp__progress {
+    margin-bottom: var(--margin-md);
+    padding: var(--padding-sm);
+    background-color: rgb(var(--color-foreground-rgb) / 0.03);
+    border-radius: var(--style-border-radius-inputs);
+  }
+
+  .gwp__progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--margin-xs);
+  }
+
+  .gwp__progress-text {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-foreground);
+  }
+
+  .gwp__progress-percentage {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-foreground);
+  }
+
+  .gwp__progress-bar {
+    width: 100%;
+    height: 8px;
+    background-color: rgb(var(--color-foreground-rgb) / 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: var(--margin-xs);
+  }
+
+  .gwp__progress-fill {
+    height: 100%;
+    background-color: var(--color-foreground);
+    border-radius: 4px;
+    width: var(--progress);
+    transition: width 0.3s var(--animation-easing);
+    max-width: 100%;
+  }
+
+  .gwp__progress--complete .gwp__progress-fill {
+    background-color: var(--color-success, var(--color-foreground));
+  }
+
+  .gwp__progress-message {
+    font-size: var(--font-size-xs);
+    color: rgb(var(--color-foreground-rgb) / var(--opacity-70));
+    margin: 0;
+  }
+
+  .gwp__progress--complete .gwp__progress-message {
+    color: var(--color-success, var(--color-foreground));
+    font-weight: var(--font-weight-medium);
   }
 
   .gwp__products {
@@ -268,7 +425,8 @@
     cursor: not-allowed;
   }
 
-  .gwp-component--hidden {
+  .gwp__products--hidden,
+  .gwp__actions--hidden {
     display: none;
   }
 {% endstylesheet %}
