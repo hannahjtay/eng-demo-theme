@@ -53,13 +53,19 @@
     class="header-logo__image-container header-logo__image-container--original"
     data-testid="header-logo"
   >
-    {% render 'image',
-      image: settings.logo,
-      class: 'header-logo__image',
-      height: settings.logo_height,
-      text_fallback: shop.name,
-      style: logo_style
-    %}
+    {% if block_settings.svg_logo != blank %}
+      <span class="header-logo__svg" style="{{ logo_style }}">
+        {{ block_settings.svg_logo }}
+      </span>
+    {% else %}
+      {% render 'image',
+        image: settings.logo,
+        class: 'header-logo__image',
+        height: settings.logo_height,
+        text_fallback: shop.name,
+        style: logo_style
+      %}
+    {% endif %}
   </span>
 
   {% if use_inverse_logo %}
@@ -67,13 +73,19 @@
       class="header-logo__image-container header-logo__image-container--inverse"
       data-testid="header-logo-inverse"
     >
-      {% render 'image',
-        image: inverse_logo,
-        class: 'header-logo__image',
-        height: settings.logo_height,
-        text_fallback: shop.name,
-        style: inverse_logo_style
-      %}
+      {% if block_settings.svg_logo_inverse != blank %}
+        <span class="header-logo__svg" style="{{ inverse_logo_style }}">
+          {{ block_settings.svg_logo_inverse }}
+        </span>
+      {% else %}
+        {% render 'image',
+          image: inverse_logo,
+          class: 'header-logo__image',
+          height: settings.logo_height,
+          text_fallback: shop.name,
+          style: inverse_logo_style
+        %}
+      {% endif %}
     </span>
   {% endif %}
 </a>
@@ -130,6 +142,24 @@
     }
   }
 
+  .header-logo__svg {
+    display: block;
+    height: var(--header-logo-image-height-mobile);
+    width: 130px;
+
+    @media screen and (min-width: 750px) {
+      height: var(--header-logo-image-height);
+      width: 130px;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+  }
+
   .header-logo:has(.header-logo__image-container--inverse) .header-logo__image-container--original {
     display: var(--header-logo-display, block);
   }
@@ -148,6 +178,22 @@
     {
       "type": "paragraph",
       "content": "t:content.edit_logo_in_theme_settings"
+    },
+    {
+      "type": "header",
+      "content": "t:content.logo_options"
+    },
+    {
+      "type": "textarea",
+      "id": "svg_logo",
+      "label": "t:settings.svg_logo",
+      "info": "t:info.svg_logo_help"
+    },
+    {
+      "type": "textarea",
+      "id": "svg_logo_inverse",
+      "label": "t:settings.svg_logo_inverse",
+      "info": "t:info.svg_logo_inverse_help"
     },
     {
       "type": "header",
