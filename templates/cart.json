@@ -6,8 +6,22 @@
  * or related systems. Please exercise caution as any changes
  * made to this file may be overwritten.
  * ------------------------------------------------------------
- */{
+ */
+{
   "sections": {
+    "gift_with_purchase_bY8yfq": {
+      "type": "gift-with-purchase",
+      "name": "t:names.gift_with_purchase",
+      "settings": {
+        "enabled": true,
+        "cart_threshold": 50,
+        "gift_products": [],
+        "vip_enabled": false,
+        "vip_tag": "VIP",
+        "vip_product": "",
+        "vip_test_mode": false
+      }
+    },
     "cart-section": {
       "type": "main-cart",
       "blocks": {
@@ -259,6 +273,7 @@
     }
   },
   "order": [
+    "gift_with_purchase_bY8yfq",
     "cart-section",
     "product_list_NNFgcy"
   ]
