@@ -308,13 +308,19 @@
                     %}
                   {%- endunless -%}
 
+                  {%- liquid
+                    assign is_vip_gift = false
+                    if item.properties._vip_gift == 'true'
+                      assign is_vip_gift = true
+                    endif
+                  -%}
                   <button
                     class="button button--tertiary cart-items__remove"
                     type="button"
                     aria-label="{{ 'accessibility.remove_item' | t: title: item.title | escape }}"
                     on:click="/onLineItemRemove/{{ item.index | plus: 1 }}"
                     {% assign can_remove = item.instructions.can_remove | default: true, allow_false: true %}
-                    {% if can_remove == false %}
+                    {% if can_remove == false or is_vip_gift %}
                       hidden
                     {% endif %}
                   >

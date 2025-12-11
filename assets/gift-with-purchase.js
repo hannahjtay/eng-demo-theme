@@ -3,21 +3,39 @@ import { fetchConfig } from '@theme/utilities';
 import { CartUpdateEvent, CartAddEvent } from '@theme/events';
 import { sectionRenderer, morphSection } from '@theme/section-renderer';
 
+/**
+ * GiftWithPurchaseComponent
+ *
+ * Responsibilities:
+ *  - Manage the Gift-with-Purchase (GWP) UI: selection, add/change/cancel,
+ *    progress bar and visibility based on cart totals and thresholds.
+ *  - Handle VIP gift behavior which can be independent of regular GWP enablement:
+ *    auto-add/remove VIP product when VIP customer has regular products in cart.
+ *  - Keep component state in sync with the store cart (via Theme cart JSON endpoints)
+ *  - Dispatch cart events so other parts of the app can react.
+ */
+
 class GiftWithPurchaseComponent extends Component {
+
   async connectedCallback() {
+    // Call base class connected callback (keeps upstream behavior)
     super.connectedCallback();
+
     this.#initState();
     this.#cacheElements();
+
     this.#bindEvents();
+
     this.#updateComponentVisibility();
     this.#updateButtonStates();
     this.#updateProgressBar();
-    // Handle VIP gift logic on initial load (with small delay to ensure cart is ready)
+
     await this.#delay(100);
     await this.#handleVipGiftLogic();
   }
 
   updatedCallback() {
+    // When the host signals it was updated (section re-render), refresh cached nodes and events
     super.updatedCallback();
     this.#cacheElements();
     this.#bindElementEvents();
@@ -31,57 +49,52 @@ class GiftWithPurchaseComponent extends Component {
   }
 
   /* ---------------------------------------------------------------------------
-   * Initialization
+   * State & DOM caching
    * ------------------------------------------------------------------------- */
 
   #initState() {
-    const d = this.dataset;
+    const data = this.dataset || {};
 
-    this.gwpEnabled = d.gwpEnabled === 'true';
-    this.cartThreshold = parseInt(d.cartThreshold || '0', 10);
+    this.gwpEnabled = data.gwpEnabled === 'true';
+    this.cartThreshold = parseInt(data.cartThreshold || '0', 10);
 
-    this.currentGiftVariantId = d.currentGiftVariantId
-      ? parseInt(d.currentGiftVariantId, 10)
+    this.currentGiftVariantId = data.currentGiftVariantId
+      ? parseInt(data.currentGiftVariantId, 10)
       : null;
 
-    this.hasGiftInCart = d.hasGiftInCart === 'true';
-    this.sectionId = d.sectionId || 'gift-with-purchase';
+    this.hasGiftInCart = data.hasGiftInCart === 'true';
+    this.sectionId = data.sectionId || 'gift-with-purchase';
     this.isEditing = false;
-    this.cartTotal = parseInt(d.cartTotal || '0', 10);
+    this.cartTotal = parseInt(data.cartTotal || '0', 10);
 
-    // VIP gift state
-    this.vipEnabled = d.vipEnabled === 'true';
-    this.isVipCustomer = d.isVipCustomer === 'true';
-    this.vipProductVariantId = d.vipProductVariantId
-      ? parseInt(d.vipProductVariantId, 10)
+    // VIP state
+    this.vipEnabled = data.vipEnabled === 'true';
+    this.isVipCustomer = data.isVipCustomer === 'true';
+    this.vipProductVariantId = data.vipProductVariantId
+      ? parseInt(data.vipProductVariantId, 10)
       : null;
-    this.hasVipGiftInCart = d.hasVipGiftInCart === 'true';
-
-    console.log('GWP Component initialized:', {
-      vipEnabled: this.vipEnabled,
-      isVipCustomer: this.isVipCustomer,
-      vipProductVariantId: this.vipProductVariantId,
-      hasVipGiftInCart: this.hasVipGiftInCart,
-      cartTotal: this.cartTotal
-    });
+    this.hasVipGiftInCart = data.hasVipGiftInCart === 'true';
   }
 
   #cacheElements() {
-    this.radioInputs = this.querySelectorAll('.gwp__product-radio');
+    this.radioInputs = Array.from(this.querySelectorAll('.gwp__product-radio') || []);
+
     this.addButton = this.querySelector('.gwp__add-button');
-    this.productContainers = this.querySelectorAll('.gwp__product');
+
+    this.productContainers = Array.from(this.querySelectorAll('.gwp__product') || []);
+
     this.closeButton = this.querySelector('[data-gwp-close-button]');
     this.progressContainer = this.querySelector('[data-gwp-progress]');
     this.progressText = this.querySelector('[data-gwp-progress-text]');
     this.progressPercentage = this.querySelector('[data-gwp-progress-percentage]');
     this.progressFill = this.querySelector('[data-gwp-progress-fill]');
-    this.progressMessage = this.querySelector('[data-gwp-progress-message]');
     this.productsSection = this.querySelector('[data-gwp-products]');
     this.actionsSection = this.querySelector('[data-gwp-actions]');
   }
 
+
   /* ---------------------------------------------------------------------------
-   * Event binding
+   * Event binding / unbinding
    * ------------------------------------------------------------------------- */
 
   #bindEvents() {
@@ -89,7 +102,6 @@ class GiftWithPurchaseComponent extends Component {
 
     document.addEventListener('click', this.#handleEditGiftClick);
     document.addEventListener('cart:update', this.#handleCartUpdate);
-    document.addEventListener('cart:add', this.#handleCartAdd);
   }
 
   #bindElementEvents() {
@@ -116,32 +128,35 @@ class GiftWithPurchaseComponent extends Component {
 
     document.removeEventListener('click', this.#handleEditGiftClick);
     document.removeEventListener('cart:update', this.#handleCartUpdate);
-    document.removeEventListener('cart:add', this.#handleCartAdd);
   }
 
   #bindRadioEvents() {
-    this.radioInputs.forEach((radio) => {
+    this.radioInputs?.forEach((radio) => {
       radio.removeEventListener('change', this.#handleSelectionChange);
       radio.addEventListener('change', this.#handleSelectionChange);
     });
   }
 
   #bindProductContainers() {
-    this.productContainers.forEach((container) => {
+    this.productContainers?.forEach((container) => {
+      // Remove previously bound handler if present
       if (container._gwpClickHandler) {
         container.removeEventListener('click', container._gwpClickHandler);
       }
 
       const handler = (event) => {
+        // Ignore clicks on real form controls inside the card
         if (event.target.closest('button') || event.target.type === 'radio') return;
 
         const radio = container.querySelector('.gwp__product-radio');
         if (radio && !radio.checked) {
           radio.checked = true;
+          // Trigger change event to reuse existing update logic
           radio.dispatchEvent(new Event('change', { bubbles: true }));
         }
       };
 
+      // Cache the handler on the element so it can be removed later
       container._gwpClickHandler = handler;
       container.addEventListener('click', handler);
     });
@@ -164,23 +179,23 @@ class GiftWithPurchaseComponent extends Component {
    * ------------------------------------------------------------------------- */
 
   #updateButtonStates() {
-    // Skip if GWP is disabled
     if (!this.gwpEnabled) return;
-    
+
     const selected = this.querySelector('.gwp__product-radio:checked');
     const selectedId = selected ? parseInt(selected.value, 10) : null;
 
     if (this.addButton) {
+      // If the selected variant differs from the one currently in cart, allow editing
       const isDifferent = selectedId && selectedId !== this.currentGiftVariantId;
 
       this.addButton.disabled = !isDifferent;
-      this.addButton.textContent =
-        isDifferent && this.currentGiftVariantId
-          ? this.addButton.dataset.changeText || 'Change gift'
-          : this.addButton.dataset.originalText || 'Add gift';
+      this.addButton.textContent = isDifferent && this.currentGiftVariantId
+        ? this.addButton.dataset.changeText || 'Change gift'
+        : this.addButton.dataset.originalText || 'Add gift';
     }
 
-    this.productContainers.forEach((p) => {
+    // Toggle selection visuals on product containers
+    this.productContainers?.forEach((p) => {
       p.classList.toggle(
         'gwp__product--selected',
         parseInt(p.dataset.variantId, 10) === selectedId
@@ -190,17 +205,16 @@ class GiftWithPurchaseComponent extends Component {
 
   #updateComponentVisibility() {
     this.classList.toggle('gwp-component--editing', this.isEditing);
-    
-    // Hide entire component if GWP is disabled (unless VIP is enabled)
+
+    // If both features are disabled, hide everything
     if (!this.gwpEnabled && !this.vipEnabled) {
       this.style.display = 'none';
       return;
     } else {
       this.style.display = '';
     }
-    
-    // Only update products/actions visibility if GWP is enabled
-    if (this.gwpEnabled) {
+
+    if (this.gwpEnabled && this.cartThreshold) {
       const meetsThreshold = this.cartTotal >= this.cartThreshold;
       this.#updateProductsVisibility(meetsThreshold);
     }
@@ -208,12 +222,10 @@ class GiftWithPurchaseComponent extends Component {
 
   #updateProgressBar() {
     if (!this.progressContainer) return;
-    
-    // Skip progress bar updates if GWP is disabled
     if (!this.gwpEnabled) return;
 
     const meetsThreshold = this.cartTotal >= this.cartThreshold;
-    const progress = Math.min((this.cartTotal / this.cartThreshold) * 100, 100);
+    const progress = Math.min((this.cartTotal / Math.max(this.cartThreshold, 1)) * 100, 100);
     const remaining = Math.max(this.cartThreshold - this.cartTotal, 0);
 
     if (this.progressFill) {
@@ -224,10 +236,8 @@ class GiftWithPurchaseComponent extends Component {
       this.progressPercentage.textContent = `${Math.round(progress)}%`;
     }
 
-    if (this.progressText && this.progressContainer) {
-      // Hide progress text when threshold is met
+    if (this.progressText) {
       this.progressText.classList.toggle('gwp__progress-text--hidden', meetsThreshold);
-      
       if (!meetsThreshold) {
         const remainingFormatted = this.#formatMoney(remaining);
         const remainingText = this.progressContainer.dataset.remainingText || '{{ amount }} remaining';
@@ -235,32 +245,17 @@ class GiftWithPurchaseComponent extends Component {
       }
     }
 
-    if (this.progressMessage && this.progressContainer) {
-      if (meetsThreshold) {
-        this.progressMessage.textContent =
-          this.progressContainer.dataset.qualifiedText || 'You qualify for a free gift!';
-      } else {
-        const thresholdFormatted = this.#formatMoney(this.cartThreshold);
-        const addMoreText = this.progressContainer.dataset.addMoreText || 'Add {{ threshold }} to qualify';
-        this.progressMessage.textContent = addMoreText.replace('{{ threshold }}', thresholdFormatted);
-      }
-    }
-
     this.progressContainer.classList.toggle('gwp__progress--complete', meetsThreshold);
 
-    // Show/hide products and actions based on threshold
+    // Sync products/actions visibility with threshold state
     this.#updateProductsVisibility(meetsThreshold);
   }
 
   #updateProductsVisibility(meetsThreshold) {
-    // Skip if GWP is disabled
     if (!this.gwpEnabled) return;
-    
-    // Hide products/actions if:
-    // 1. Threshold is not met, OR
-    // 2. A regular GWP is in cart and user is not editing
+
     const shouldHide = !meetsThreshold || (this.hasGiftInCart && !this.isEditing);
-    
+
     if (this.productsSection) {
       this.productsSection.classList.toggle('gwp__products--hidden', shouldHide);
     }
@@ -270,16 +265,18 @@ class GiftWithPurchaseComponent extends Component {
   }
 
   #formatMoney(cents) {
-    // Simple money formatting - can be enhanced with Theme.moneyFormat if available
     const amount = (cents / 100).toFixed(2);
     return `$${amount}`;
   }
 
   /* ---------------------------------------------------------------------------
-   * Event handlers
+   * Event handlers (bound as instance properties to preserve `this`)
    * ------------------------------------------------------------------------- */
 
-  #handleSelectionChange = () => this.#updateButtonStates();
+  #handleSelectionChange = () => {
+    // When the user picks a different gift, update the add button.
+    this.#updateButtonStates();
+  };
 
   #handleEditGiftClick = (event) => {
     const btn = event.target.closest('[data-gwp-edit-button]');
@@ -303,52 +300,48 @@ class GiftWithPurchaseComponent extends Component {
     await this.#handleVipGiftLogic();
   };
 
-  #handleCartAdd = async (event) => {
-    if (event.target === this) return;
-    await this.#syncWithCart();
-    await this.#handleVipGiftLogic();
-  };
-
   #handleAddGift = async () => {
     const selected = this.querySelector('.gwp__product-radio:checked');
     if (!selected) return;
 
     const variantId = parseInt(selected.value, 10);
 
+    // Remove any existing GWP items, then add the selected gift
     await this.#removeAllGwpItems();
     await this.#addGiftToCart(variantId.toString());
   };
 
   /* ---------------------------------------------------------------------------
-   * Cart logic
+   * Cart syncing & utilities
    * ------------------------------------------------------------------------- */
+
+  /**
+   * #syncWithCart
+   * Fetch the live cart JSON, update internal state flags and UI accordingly.
+   */
 
   async #syncWithCart() {
     try {
       const cart = await this.#fetchJson(Theme.routes.cart_url + '.js');
 
       this.cartTotal = cart.total_price;
-      
-      // Only check threshold if GWP is enabled
+
       const meetsThreshold = this.gwpEnabled ? cart.total_price >= this.cartThreshold : false;
 
       const gwpItems = cart.items.filter((i) => this.#isGwpItem(i));
       this.hasGiftInCart = gwpItems.length > 0;
-
       this.currentGiftVariantId = gwpItems[0]?.variant_id || null;
 
-      // Check for VIP gift in cart (independent of GWP enabled state)
       const vipGiftItems = cart.items.filter((i) => this.#isVipGiftItem(i));
       this.hasVipGiftInCart = vipGiftItems.length > 0;
 
       this.#updateComponentVisibility();
-      
-      // Only update progress bar if GWP is enabled
+
       if (this.gwpEnabled) {
         this.#updateProgressBar();
       }
 
-      // Only remove GWP items if threshold not met and GWP is enabled
+      // If threshold no longer met, remove existing GWP items
       if (this.gwpEnabled && !meetsThreshold && gwpItems.length > 0) {
         await this.#removeAllGwpItems();
         this.currentGiftVariantId = null;
@@ -382,15 +375,19 @@ class GiftWithPurchaseComponent extends Component {
 
   #hasRegularProducts(cart) {
     return cart.items.some(
-      (item) => !this.#isGwpItem(item) && !this.#isVipGiftItem(item) 
+      (item) => !this.#isGwpItem(item) && !this.#isVipGiftItem(item)
     );
   }
 
+  /**
+   * #getCartSectionIds
+   * Get section IDs from cart so only relevant sections of the UI are updated.
+   */
   #getCartSectionIds() {
     const ids = new Set([this.sectionId]);
 
     document.querySelectorAll('cart-items-component, cart-summary').forEach((el) => {
-      if (el.dataset.sectionId) ids.add(el.dataset.sectionId);
+      if (el.dataset && el.dataset.sectionId) ids.add(el.dataset.sectionId);
     });
 
     return [...ids];
@@ -403,20 +400,16 @@ class GiftWithPurchaseComponent extends Component {
     if (gwpItems.length === 0) return;
 
     const sectionIds = this.#getCartSectionIds();
-    const sorted = [...gwpItems].sort(
-      (a, b) => cart.items.indexOf(b) - cart.items.indexOf(a)
-    );
+    const sorted = [...gwpItems].sort((a, b) => cart.items.indexOf(b) - cart.items.indexOf(a));
 
     for (const item of sorted) {
       const line = cart.items.indexOf(item) + 1;
-
       await this.#postJson(Theme.routes.cart_change_url, {
         line,
         quantity: 0,
         sections: sectionIds.join(','),
         sections_url: window.location.pathname,
       });
-
       await this.#delay(100);
     }
 
@@ -431,20 +424,16 @@ class GiftWithPurchaseComponent extends Component {
     if (vipGiftItems.length === 0) return;
 
     const sectionIds = this.#getCartSectionIds();
-    const sorted = [...vipGiftItems].sort(
-      (a, b) => cart.items.indexOf(b) - cart.items.indexOf(a)
-    );
+    const sorted = [...vipGiftItems].sort((a, b) => cart.items.indexOf(b) - cart.items.indexOf(a));
 
     for (const item of sorted) {
       const line = cart.items.indexOf(item) + 1;
-
       await this.#postJson(Theme.routes.cart_change_url, {
         line,
         quantity: 0,
         sections: sectionIds.join(','),
         sections_url: window.location.pathname,
       });
-
       await this.#delay(100);
     }
 
@@ -453,6 +442,10 @@ class GiftWithPurchaseComponent extends Component {
     await this.#refreshAllCartSections();
   }
 
+  /**
+   * #addGiftToCart
+   * Add the selected GWP variant to cart. Handles UI state for the Add button,
+   */
   async #addGiftToCart(variantId) {
     if (this.addButton) {
       this.addButton.dataset.originalText ??= this.addButton.textContent;
@@ -476,9 +469,7 @@ class GiftWithPurchaseComponent extends Component {
       const data = await response.json();
       if (data.status) throw new Error(data.message);
 
-      Object.entries(data.sections || {}).forEach(([id, html]) =>
-        morphSection(id, html)
-      );
+      Object.entries(data.sections || {}).forEach(([id, html]) => morphSection(id, html));
 
       const cart = await this.#fetchJson(Theme.routes.cart_url + '.js');
 
@@ -502,8 +493,7 @@ class GiftWithPurchaseComponent extends Component {
     } finally {
       if (this.addButton) {
         this.addButton.disabled = false;
-        this.addButton.textContent =
-          this.addButton.dataset.originalText || 'Add gift';
+        this.addButton.textContent = this.addButton.dataset.originalText || 'Add gift';
       }
     }
   }
@@ -513,11 +503,6 @@ class GiftWithPurchaseComponent extends Component {
       console.warn('VIP gift: No VIP product variant ID set');
       return;
     }
-
-    console.log('VIP gift: Attempting to add to cart', {
-      variantId: this.vipProductVariantId,
-      cartAddUrl: Theme.routes.cart_add_url
-    });
 
     try {
       const formData = new FormData();
@@ -534,15 +519,12 @@ class GiftWithPurchaseComponent extends Component {
       });
 
       const data = await response.json();
-      console.log('VIP gift: Cart add response', data);
 
       if (data.status) {
         throw new Error(data.message || 'Failed to add VIP gift');
       }
 
-      Object.entries(data.sections || {}).forEach(([id, html]) =>
-        morphSection(id, html)
-      );
+      Object.entries(data.sections || {}).forEach(([id, html]) => morphSection(id, html));
 
       const cart = await this.#fetchJson(Theme.routes.cart_url + '.js');
 
@@ -555,9 +537,7 @@ class GiftWithPurchaseComponent extends Component {
         })
       );
 
-      // Update state after successful add
       this.hasVipGiftInCart = true;
-      console.log('VIP gift: Successfully added to cart');
       await this.#syncWithCart();
     } catch (err) {
       console.error('Error adding VIP gift:', err);
@@ -566,12 +546,10 @@ class GiftWithPurchaseComponent extends Component {
 
   async #handleVipGiftLogic() {
     if (!this.vipEnabled) {
-      console.log('VIP gift: VIP feature is disabled');
       return;
     }
 
     if (!this.isVipCustomer) {
-      console.log('VIP gift: Customer is not VIP');
       return;
     }
 
@@ -585,25 +563,12 @@ class GiftWithPurchaseComponent extends Component {
       const hasRegularProducts = this.#hasRegularProducts(cart);
       const hasVipGift = cart.items.some((item) => this.#isVipGiftItem(item));
 
-      console.log('VIP gift logic:', {
-        hasRegularProducts,
-        hasVipGift,
-        cartItemCount: cart.items.length,
-        vipProductVariantId: this.vipProductVariantId
-      });
-
       if (hasRegularProducts) {
-        // If cart has regular products, add VIP gift automatically
         if (!hasVipGift) {
-          console.log('VIP gift: Adding VIP gift (regular products in cart)');
           await this.#addVipGiftToCart();
-        } else {
-          console.log('VIP gift: Already in cart');
         }
       } else {
-        // If cart is empty or only has VIP gift, remove VIP gift
         if (hasVipGift) {
-          console.log('VIP gift: Removing VIP gift (cart empty or only has VIP gift)');
           await this.#removeVipGift();
         }
       }
@@ -613,7 +578,7 @@ class GiftWithPurchaseComponent extends Component {
   }
 
   /* ---------------------------------------------------------------------------
-   * Utilities
+   * Utilities: server communication & helpers
    * ------------------------------------------------------------------------- */
 
   async #refreshAllCartSections() {
@@ -621,9 +586,7 @@ class GiftWithPurchaseComponent extends Component {
     await Promise.all(
       ids
         .filter((id) => id)
-        .map((id) =>
-          sectionRenderer.renderSection(id, { cache: false }).catch(() => {})
-        )
+        .map((id) => sectionRenderer.renderSection(id, { cache: false }).catch(() => {}))
     );
   }
 
@@ -637,6 +600,7 @@ class GiftWithPurchaseComponent extends Component {
     return res.json();
   }
 
+  // Wait N milliseconds. Used to space out cart-change requests and allow the theme/server to reach a consistent state.
   #delay(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }

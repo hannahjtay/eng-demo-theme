@@ -226,7 +226,7 @@
     "pills_usage": "Used for applied filters, discount codes, and search suggestions",
     "media_type_info": "Features are populated from your menu links",
     "gwp_enabled": "Enable or disable the gift with purchase feature",
-    "cart_threshold": "Minimum cart value (in cents) required to qualify for a free gift",
+    "cart_threshold": "Minimum cart value (in dollars) required to qualify for a free gift",
     "gift_products": "Select products that customers can choose as free gifts",
     "vip_enabled": "Allow VIP customers to receive free gifts without meeting the cart threshold",
     "vip_tag": "Customer tag that identifies VIP customers (e.g., 'VIP')"

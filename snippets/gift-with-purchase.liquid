@@ -165,13 +165,6 @@
               -%}{{ progress_percentage }}%"
             ></div>
           </div>
-          <p class="gwp__progress-message" data-gwp-progress-message>
-            {%- if meets_threshold -%}
-              {{ 'gwp.progress.qualified' | t }}
-            {%- else -%}
-              {{ 'gwp.progress.add_more' | t: threshold: cart_threshold | money }}
-            {%- endif -%}
-          </p>
         </div>
       {%- endif -%}
 
@@ -363,17 +356,6 @@
 
   .gwp__progress--complete .gwp__progress-fill {
     background-color: var(--color-success, var(--color-foreground));
-  }
-
-  .gwp__progress-message {
-    font-size: var(--font-size-xs);
-    color: rgb(var(--color-foreground-rgb) / var(--opacity-70));
-    margin: 0;
-  }
-
-  .gwp__progress--complete .gwp__progress-message {
-    color: var(--color-success, var(--color-foreground));
-    font-weight: var(--font-weight-medium);
   }
 
   .gwp__products {
