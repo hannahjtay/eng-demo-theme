@@ -9,6 +9,23 @@
  */
 {
   "sections": {
+    "gift_with_purchase_QtVcgQ": {
+      "type": "gift-with-purchase",
+      "name": "t:names.gift_with_purchase",
+      "settings": {
+        "enabled": true,
+        "cart_threshold": 50,
+        "gift_products": [
+          "free-gift-the-cabin-beanie",
+          "free-gift-the-cashmere-beanie-copy",
+          "free-gift-the-cabin-beanie-copy"
+        ],
+        "vip_enabled": false,
+        "vip_tag": "VIP",
+        "vip_product": "",
+        "vip_test_mode": false
+      }
+    },
     "cart-section": {
       "type": "main-cart",
       "blocks": {
@@ -260,6 +277,7 @@
     }
   },
   "order": [
+    "gift_with_purchase_QtVcgQ",
     "cart-section",
     "product_list_NNFgcy"
   ]
