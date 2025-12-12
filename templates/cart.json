@@ -20,10 +20,10 @@
           "free-gift-the-cashmere-beanie-copy",
           "free-gift-the-cabin-beanie-copy"
         ],
-        "vip_enabled": false,
+        "vip_enabled": true,
         "vip_tag": "VIP",
         "vip_product": "free-vip-gift-the-cabin-socks",
-        "vip_test_mode": false
+        "vip_test_mode": true
       }
     },
     "cart-section": {
