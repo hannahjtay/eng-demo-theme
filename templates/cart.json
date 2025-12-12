@@ -15,10 +15,14 @@
       "settings": {
         "enabled": true,
         "cart_threshold": 50,
-        "gift_products": [],
+        "gift_products": [
+          "free-gift-the-cabin-beanie",
+          "free-gift-the-cashmere-beanie-copy",
+          "free-gift-the-cabin-beanie-copy"
+        ],
         "vip_enabled": false,
         "vip_tag": "VIP",
-        "vip_product": "",
+        "vip_product": "free-vip-gift-the-cabin-socks",
         "vip_test_mode": false
       }
     },
